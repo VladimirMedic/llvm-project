@@ -74,7 +74,7 @@ public:
     ppc64,       // PPC64: powerpc64, ppu
     ppc64le,     // PPC64LE: powerpc64le
     r600,        // R600: AMD GPUs HD2XXX - HD6XXX
-    amdgcn,      // AMDGCN: AMD GCN GPUs
+    amdgpu,      // AMDGPU: AMD GCN+ GPUs
     riscv32,     // RISC-V (32-bit, little endian): riscv32
     riscv64,     // RISC-V (64-bit, little endian): riscv64
     riscv32be,   // RISC-V (32-bit, big endian): riscv32be
@@ -184,6 +184,22 @@ public:
     DXILSubArch_v1_8,
     DXILSubArch_v1_9,
     LatestDXILSubArch = DXILSubArch_v1_9,
+
+    // AMDGPU sub-arch
+    AMDGPUSubArch6,
+    AMDGPUSubArch7,
+    AMDGPUSubArch8,
+    AMDGPUSubArch8_1,
+    AMDGPUSubArch9,
+    AMDGPUSubArch9_4,
+    AMDGPUSubArch10_1,
+    AMDGPUSubArch10_3,
+    AMDGPUSubArch11,
+    AMDGPUSubArch12,
+    AMDGPUSubArch12_5,
+    AMDGPUSubArch13,
+    FirstAMDGPUSubArch = AMDGPUSubArch6,
+    LastAMDGPUSubArch = AMDGPUSubArch13
   };
   enum VendorType {
     UnknownVendor,
@@ -951,9 +967,9 @@ public:
   }
 
   /// Tests whether the target is AMDGCN
-  bool isAMDGCN() const { return getArch() == Triple::amdgcn; }
+  bool isAMDGCN() const { return getArch() == Triple::amdgpu; }
 
-  bool isAMDGPU() const { return getArch() == Triple::r600 || isAMDGCN(); }
+  bool isAMDGPU() const { return isAMDGCN() || getArch() == Triple::r600; }
 
   /// Tests whether the target is Thumb (little and big endian).
   bool isThumb() const {

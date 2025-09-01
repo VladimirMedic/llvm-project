@@ -33,6 +33,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeAMDGPUTargetInfo() {
   RegisterTarget<Triple::r600, false> R600(getTheR600Target(), "r600",
                                            "AMD GPUs HD2XXX-HD6XXX", "AMDGPU");
-  RegisterTarget<Triple::amdgcn, false> GCN(getTheGCNTarget(), "amdgcn",
-                                            "AMD GCN GPUs", "AMDGPU");
+  Target &GCNTgt = getTheGCNTarget();
+  RegisterTarget<Triple::amdgpu, false> GCN(GCNTgt, "amdgpu", "AMD GCN GPUs",
+                                            "AMDGPU");
 }

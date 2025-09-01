@@ -844,6 +844,33 @@ static StringRef getGPUOrDefault(const Triple &TT, StringRef GPU) {
   if (!GPU.empty())
     return GPU;
 
+  switch (TT.getSubArch()) {
+  case Triple::AMDGPUSubArch6:
+    return "gfx600";
+  case Triple::AMDGPUSubArch7:
+    return "gfx700";
+  case Triple::AMDGPUSubArch8:
+    return "gfx801";
+  case Triple::AMDGPUSubArch9:
+    return "gfx9-generic";
+  case Triple::AMDGPUSubArch9_4:
+    return "gfx9-4-generic";
+  case Triple::AMDGPUSubArch10_1:
+    return "gfx10-1-generic";
+  case Triple::AMDGPUSubArch10_3:
+    return "gfx10-3-generic";
+  case Triple::AMDGPUSubArch11:
+    return "gfx11-generic";
+  case Triple::AMDGPUSubArch12:
+    return "gfx12-generic";
+  case Triple::AMDGPUSubArch12_5:
+    return "gfx12-5-generic";
+  case Triple::AMDGPUSubArch13:
+    return "gfx1310";
+  default:
+    break;
+  }
+
   // Need to default to a target with flat support for HSA.
   if (TT.isAMDGCN())
     return TT.getOS() == Triple::AMDHSA ? "generic-hsa" : "generic";

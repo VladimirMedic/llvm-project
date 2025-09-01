@@ -1277,7 +1277,7 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
   }
   case llvm::Triple::aarch64_32:
     return getTripleString().str();
-  case llvm::Triple::amdgcn: {
+  case llvm::Triple::amdgpu: {
     llvm::Triple Triple = getTriple();
     if (Args.getLastArgValue(options::OPT_mcpu_EQ) == "amdgcnspirv")
       Triple.setArch(llvm::Triple::ArchType::spirv64);

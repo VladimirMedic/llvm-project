@@ -78,9 +78,37 @@ StringRef llvm::AMDGPU::getArchFamilyNameAMDGCN(GPUKind AK) {
   return ArchName.empty() ? "" : ArchName.drop_back(2);
 }
 
+unsigned llvm::AMDGPU::getSubArch(GPUKind AK) {
+  switch (AK) {
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES)                  \
+  case ENUM:                                                                   \
+    return SUBARCH;
+#include "llvm/TargetParser/AMDGPUTargetParser.def"
+  default:
+    return Triple::SubArchType::NoSubArch;
+  }
+}
+
+static const StringLiteral AMDGPUSubArchNames[Triple::LastAMDGPUSubArch -
+                                              Triple::FirstAMDGPUSubArch + 1] =
+    {"amdgpu6",  "amdgpu7",   "amdgpu8",    "amdgpu8.1",
+     "amdgpu9",  "amdgpu9.4", "amdgpu10.1", "amdgpu10.3",
+     "amdgpu11", "amdgpu12",  "amdgpu12.5", "amdgpu13"};
+
+StringRef llvm::AMDGPU::getSubArchName(GPUKind AK) {
+  switch (AK) {
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES)                  \
+  case ENUM:                                                                   \
+    return AMDGPUSubArchNames[SUBARCH - Triple::FirstAMDGPUSubArch];
+#include "llvm/TargetParser/AMDGPUTargetParser.def"
+  default:
+    return "";
+  }
+}
+
 StringRef llvm::AMDGPU::getArchNameAMDGCN(GPUKind AK) {
   switch (AK) {
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES)                           \
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES)                  \
   case ENUM:                                                                   \
     return NAME;
 #include "llvm/TargetParser/AMDGPUTargetParser.def"
@@ -102,7 +130,7 @@ StringRef llvm::AMDGPU::getArchNameR600(GPUKind AK) {
 
 AMDGPU::GPUKind llvm::AMDGPU::parseArchAMDGCN(StringRef CPU) {
   return StringSwitch<AMDGPU::GPUKind>(CPU)
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES) .Case(NAME, ENUM)
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES) .Case(NAME, ENUM)
 #define AMDGCN_GPU_ALIAS(NAME, ENUM) .Case(NAME, ENUM)
 #include "llvm/TargetParser/AMDGPUTargetParser.def"
       .Default(AMDGPU::GPUKind::GK_NONE);
@@ -118,7 +146,7 @@ AMDGPU::GPUKind llvm::AMDGPU::parseArchR600(StringRef CPU) {
 
 unsigned AMDGPU::getArchAttrAMDGCN(GPUKind AK) {
   switch (AK) {
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES)                           \
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES)                  \
   case ENUM:                                                                   \
     return FEATURES;
 #include "llvm/TargetParser/AMDGPUTargetParser.def"
@@ -141,7 +169,7 @@ unsigned AMDGPU::getArchAttrR600(GPUKind AK) {
 void AMDGPU::fillValidArchListAMDGCN(SmallVectorImpl<StringRef> &Values) {
   // XXX: Should this only report unique canonical names?
   Values.append({
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES) NAME,
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES) NAME,
 #define AMDGCN_GPU_ALIAS(NAME, ENUM) NAME,
 #include "llvm/TargetParser/AMDGPUTargetParser.def"
   });
@@ -167,7 +195,7 @@ AMDGPU::IsaVersion AMDGPU::getIsaVersion(StringRef GPU) {
 
   switch (AK) {
 #define MAKE_ISAVERSION(A, B, C) {A, B, C}
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES)                           \
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES)                  \
   case ENUM:                                                                   \
     return MAKE_ISAVERSION ISAVERSION;
 #include "llvm/TargetParser/AMDGPUTargetParser.def"

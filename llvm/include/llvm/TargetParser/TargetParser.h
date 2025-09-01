@@ -40,7 +40,7 @@ enum GPUKind : uint32_t {
   GK_NONE = 0,
 
 #define R600_GPU(NAME, ENUM, FEATURES) ENUM,
-#define AMDGCN_GPU(NAME, ENUM, ISAVERSION, FEATURES) ENUM,
+#define AMDGCN_GPU(NAME, ENUM, SUBARCH, ISAVERSION, FEATURES) ENUM,
 #include "AMDGPUTargetParser.def"
 
   GK_AMDGCN_GENERIC_FIRST = GK_GFX9_GENERIC,
@@ -91,7 +91,8 @@ enum FeatureError : uint32_t {
 };
 
 LLVM_ABI StringRef getArchFamilyNameAMDGCN(GPUKind AK);
-
+LLVM_ABI StringRef getSubArchName(GPUKind AK);
+LLVM_ABI unsigned getSubArch(GPUKind AK); // Triple::ArchType
 LLVM_ABI StringRef getArchNameAMDGCN(GPUKind AK);
 LLVM_ABI StringRef getArchNameR600(GPUKind AK);
 LLVM_ABI StringRef getCanonicalArchName(const Triple &T, StringRef Arch);

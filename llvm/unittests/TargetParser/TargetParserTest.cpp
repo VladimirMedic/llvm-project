@@ -2363,4 +2363,109 @@ TEST(TargetParserTest, checkFindSinglePrecisionFPU) {
   }
 }
 
+TEST(TargetParserTest, testAMDGPUArch) {
+  EXPECT_EQ(Triple("amdgpu--").getArch(), Triple::amdgpu);
+  EXPECT_EQ(Triple("amdgpu--").getSubArch(), Triple::NoSubArch);
+  EXPECT_EQ(Triple("amdgpu0--").getSubArch(), Triple::NoSubArch);
+  EXPECT_EQ(Triple("amdgpufoo--").getSubArch(), Triple::NoSubArch);
+
+  {
+    EXPECT_EQ(Triple("amdgpu6--").getSubArch(), Triple::AMDGPUSubArch6);
+    EXPECT_EQ(Triple("amdgpu6.0").getSubArch(), Triple::AMDGPUSubArch6);
+    EXPECT_EQ(Triple("amdgpu6.00").getSubArch(), Triple::AMDGPUSubArch6);
+    EXPECT_EQ(Triple("amdgpu6.01").getSubArch(), Triple::AMDGPUSubArch6);
+    EXPECT_EQ(Triple("amdgpu6.02").getSubArch(), Triple::AMDGPUSubArch6);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu7--").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.0--").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.00").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.01").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.02").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.03").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.04").getSubArch(), Triple::AMDGPUSubArch7);
+    EXPECT_EQ(Triple("amdgpu7.05").getSubArch(), Triple::AMDGPUSubArch7);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu8--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.0--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.01--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.02--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.03--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.05--").getSubArch(), Triple::AMDGPUSubArch8);
+    EXPECT_EQ(Triple("amdgpu8.1--").getSubArch(), Triple::AMDGPUSubArch8_1);
+    EXPECT_EQ(Triple("amdgpu8.10--").getSubArch(), Triple::AMDGPUSubArch8_1);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu9--").getArch(), Triple::amdgpu);
+    EXPECT_EQ(Triple("amdgpu9--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.0--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.00--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.02--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.04--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.06--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.08--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.0a--").getSubArch(), Triple::AMDGPUSubArch9);
+    EXPECT_EQ(Triple("amdgpu9.0c--").getSubArch(), Triple::AMDGPUSubArch9);
+
+    EXPECT_EQ(Triple("amdgpu9.4--").getSubArch(), Triple::AMDGPUSubArch9_4);
+    EXPECT_EQ(Triple("amdgpu9.42--").getSubArch(), Triple::AMDGPUSubArch9_4);
+    EXPECT_EQ(Triple("amdgpu9.50--").getSubArch(), Triple::AMDGPUSubArch9_4);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu10--").getArch(), Triple::amdgpu);
+    EXPECT_EQ(Triple("amdgpu10--").getSubArch(), Triple::AMDGPUSubArch10_1);
+    EXPECT_EQ(Triple("amdgpu10.1--").getSubArch(), Triple::AMDGPUSubArch10_1);
+    EXPECT_EQ(Triple("amdgpu10.10--").getSubArch(), Triple::AMDGPUSubArch10_1);
+    EXPECT_EQ(Triple("amdgpu10.11--").getSubArch(), Triple::AMDGPUSubArch10_1);
+    EXPECT_EQ(Triple("amdgpu10.12--").getSubArch(), Triple::AMDGPUSubArch10_1);
+    EXPECT_EQ(Triple("amdgpu10.13--").getSubArch(), Triple::AMDGPUSubArch10_1);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu10.3--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.30--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.31--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.32--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.33--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.34--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.35--").getSubArch(), Triple::AMDGPUSubArch10_3);
+    EXPECT_EQ(Triple("amdgpu10.36--").getSubArch(), Triple::AMDGPUSubArch10_3);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu11--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.0--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.00--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.01--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.02--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.03--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.5--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.50--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.51--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.52--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.53--").getSubArch(), Triple::AMDGPUSubArch11);
+    EXPECT_EQ(Triple("amdgpu11.70--").getSubArch(), Triple::AMDGPUSubArch11);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu12--").getSubArch(), Triple::AMDGPUSubArch12);
+    EXPECT_EQ(Triple("amdgpu12.0--").getSubArch(), Triple::AMDGPUSubArch12);
+    EXPECT_EQ(Triple("amdgpu12.00--").getSubArch(), Triple::AMDGPUSubArch12);
+    EXPECT_EQ(Triple("amdgpu12.01--").getSubArch(), Triple::AMDGPUSubArch12);
+    EXPECT_EQ(Triple("amdgpu12.5--").getSubArch(), Triple::AMDGPUSubArch12_5);
+    EXPECT_EQ(Triple("amdgpu12.50--").getSubArch(), Triple::AMDGPUSubArch12_5);
+    EXPECT_EQ(Triple("amdgpu12.51--").getSubArch(), Triple::AMDGPUSubArch12_5);
+  }
+
+  {
+    EXPECT_EQ(Triple("amdgpu13--").getSubArch(), Triple::AMDGPUSubArch13);
+    EXPECT_EQ(Triple("amdgpu13.10--").getSubArch(), Triple::AMDGPUSubArch13);
+  }
+}
+
 } // namespace

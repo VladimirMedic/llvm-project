@@ -1944,7 +1944,7 @@ fir::CodeGenSpecifics::get(mlir::MLIRContext *ctx, llvm::Triple &&trp,
   case llvm::Triple::ArchType::riscv64:
     return std::make_unique<TargetRISCV64>(
         ctx, std::move(trp), std::move(kindMap), targetCPU, targetFeatures, dl);
-  case llvm::Triple::ArchType::amdgcn:
+  case llvm::Triple::ArchType::amdgpu:
     return std::make_unique<TargetAMDGPU>(
         ctx, std::move(trp), std::move(kindMap), targetCPU, targetFeatures, dl);
   case llvm::Triple::ArchType::nvptx64:

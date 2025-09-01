@@ -59,6 +59,37 @@ static cl::opt<bool>
 
 GCNSubtarget::~GCNSubtarget() = default;
 
+static AMDGPUSubtarget::Generation computeDefaultGeneration(const Triple &TT) {
+  switch (TT.getSubArch()) {
+  case Triple::AMDGPUSubArch6:
+    return AMDGPUSubtarget::SOUTHERN_ISLANDS;
+  case Triple::AMDGPUSubArch7:
+    return AMDGPUSubtarget::SEA_ISLANDS;
+  case Triple::AMDGPUSubArch8:
+    return AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  case Triple::AMDGPUSubArch9:
+  case Triple::AMDGPUSubArch9_4:
+    return AMDGPUSubtarget::GFX9;
+  case Triple::AMDGPUSubArch10_1:
+  case Triple::AMDGPUSubArch10_3:
+    return AMDGPUSubtarget::GFX10;
+  case Triple::AMDGPUSubArch11:
+    return AMDGPUSubtarget::GFX11;
+  case Triple::AMDGPUSubArch12:
+  case Triple::AMDGPUSubArch12_5:
+    return AMDGPUSubtarget::GFX12;
+  case Triple::AMDGPUSubArch13:
+    return AMDGPUSubtarget::GFX13;
+  case Triple::NoSubArch:
+    return TT.getOS() == Triple::AMDHSA ? AMDGPUSubtarget::SEA_ISLANDS
+                                        : AMDGPUSubtarget::SOUTHERN_ISLANDS;
+  default:
+    reportFatalUsageError("invalid subarch for amdgpu");
+  }
+
+  llvm_unreachable("covered switch");
+}
+
 GCNSubtarget &GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
                                                             StringRef GPU,
                                                             StringRef FS) {
@@ -99,8 +130,7 @@ GCNSubtarget &GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // the first amdgcn target that supports flat addressing. Other OSes defaults
   // to the first amdgcn target.
   if (Gen == AMDGPUSubtarget::INVALID) {
-    Gen = TT.getOS() == Triple::AMDHSA ? AMDGPUSubtarget::SEA_ISLANDS
-                                       : AMDGPUSubtarget::SOUTHERN_ISLANDS;
+    Gen = computeDefaultGeneration(TT);
     // Assume wave64 for the unknown target, if not explicitly set.
     if (getWavefrontSizeLog2() == 0)
       WavefrontSizeLog2 = 6;

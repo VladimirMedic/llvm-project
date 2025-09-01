@@ -131,6 +131,7 @@ Changes to the AMDGPU Backend
 -----------------------------
 
 * Initial support for gfx1310
+* Changed triple naming system from "amdgcn" to "amdgpu" plus a subarch suffix.
 
 Changes to the ARM Backend
 --------------------------

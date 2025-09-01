@@ -28,7 +28,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case aarch64:        return "aarch64";
   case aarch64_32:     return "aarch64_32";
   case aarch64_be:     return "aarch64_be";
-  case amdgcn:         return "amdgcn";
+  case amdgpu:         return "amdgpu";
   case amdil64:        return "amdil64";
   case amdil:          return "amdil";
   case arc:            return "arc";
@@ -166,6 +166,19 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
       break;
     }
     break;
+  case Triple::amdgpu: {
+    if (SubArch < Triple::FirstAMDGPUSubArch ||
+        SubArch > Triple::LastAMDGPUSubArch)
+      break;
+
+    static const StringLiteral AMDGPUSubArchNames[Triple::LastAMDGPUSubArch -
+                                                  Triple::FirstAMDGPUSubArch +
+                                                  1] = {
+        "amdgpu6",  "amdgpu7",   "amdgpu8",    "amdgpu8.1",
+        "amdgpu9",  "amdgpu9.4", "amdgpu10.1", "amdgpu10.3",
+        "amdgpu11", "amdgpu12",  "amdgpu12.5", "amdgpu13"};
+    return AMDGPUSubArchNames[SubArch - Triple::FirstAMDGPUSubArch];
+  }
   default:
     break;
   }
@@ -204,7 +217,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case hexagon:     return "hexagon";
 
-  case amdgcn:      return "amdgcn";
+  // Intrinsics use amdgcn prefix.
+  case amdgpu:      return "amdgcn";
   case r600:        return "r600";
 
   case bpfel:
@@ -480,8 +494,8 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("ppc32le", ppcle)
       .Case("ppcle", ppcle)
       .Case("ppc64le", ppc64le)
+      .Case("amdgpu", amdgpu)
       .Case("r600", r600)
-      .Case("amdgcn", amdgcn)
       .Case("riscv32", riscv32)
       .Case("riscv64", riscv64)
       .Case("riscv32be", riscv32be)
@@ -631,8 +645,9 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Cases({"mips64el", "mipsn32el", "mipsisa64r6el", "mips64r6el",
                   "mipsn32r6el"},
                  Triple::mips64el)
+          .StartsWith("amdgpu", Triple::amdgpu)
+          .Case("amdgcn", Triple::amdgpu)
           .Case("r600", Triple::r600)
-          .Case("amdgcn", Triple::amdgcn)
           .Case("riscv32", Triple::riscv32)
           .Case("riscv64", Triple::riscv64)
           .Case("riscv32be", Triple::riscv32be)
@@ -881,6 +896,25 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
         .EndsWith("v1.9", Triple::DXILSubArch_v1_9)
         .Default(Triple::NoSubArch);
 
+  if (SubArchName.consume_front("amdgpu")) {
+    return StringSwitch<Triple::SubArchType>(SubArchName)
+        .StartsWith("6", Triple::AMDGPUSubArch6)
+        .StartsWith("7", Triple::AMDGPUSubArch7)
+        .StartsWith("8.1", Triple::AMDGPUSubArch8_1)
+        .StartsWith("8", Triple::AMDGPUSubArch8)
+        .StartsWith("9.4", Triple::AMDGPUSubArch9_4)
+        .StartsWith("9.5", Triple::AMDGPUSubArch9_4)
+        .StartsWith("9", Triple::AMDGPUSubArch9)
+        .Case("10", Triple::AMDGPUSubArch10_1)
+        .StartsWith("10.1", Triple::AMDGPUSubArch10_1)
+        .StartsWith("10.3", Triple::AMDGPUSubArch10_3)
+        .StartsWith("11", Triple::AMDGPUSubArch11)
+        .StartsWith("12.5", Triple::AMDGPUSubArch12_5)
+        .StartsWith("12", Triple::AMDGPUSubArch12)
+        .StartsWith("13", Triple::AMDGPUSubArch13)
+        .Default(Triple::NoSubArch);
+  }
+
   StringRef ARMSubArch = ARM::getCanonicalArchName(SubArchName);
 
   // For now, this is the small part. Early return.
@@ -993,7 +1027,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
       return T.isOSDarwin() ? Triple::MachO : Triple::ELF;
     }
   case Triple::aarch64_be:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::amdil64:
   case Triple::amdil:
   case Triple::arc:
@@ -1779,7 +1813,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
 
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
-  case llvm::Triple::amdgcn:
+  case llvm::Triple::amdgpu:
   case llvm::Triple::amdil64:
   case llvm::Triple::bpfeb:
   case llvm::Triple::bpfel:
@@ -1840,7 +1874,7 @@ Triple Triple::get32BitArchVariant() const {
   Triple T(*this);
   switch (getArch()) {
   case Triple::UnknownArch:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::avr:
   case Triple::bpfeb:
   case Triple::bpfel:
@@ -1944,7 +1978,7 @@ Triple Triple::get64BitArchVariant() const {
 
   case Triple::aarch64:
   case Triple::aarch64_be:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::amdil64:
   case Triple::bpfeb:
   case Triple::bpfel:
@@ -2009,7 +2043,7 @@ Triple Triple::getBigEndianArchVariant() const {
     return T;
   switch (getArch()) {
   case Triple::UnknownArch:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::amdil64:
   case Triple::amdil:
   case Triple::avr:
@@ -2119,7 +2153,7 @@ bool Triple::isLittleEndian() const {
   switch (getArch()) {
   case Triple::aarch64:
   case Triple::aarch64_32:
-  case Triple::amdgcn:
+  case Triple::amdgpu:
   case Triple::amdil64:
   case Triple::amdil:
   case Triple::arm:
@@ -2196,6 +2230,19 @@ bool Triple::isCompatibleWith(const Triple &Other) const {
              getOS() == Other.getOS() &&
              getEnvironment() == Other.getEnvironment() &&
              getObjectFormat() == Other.getObjectFormat();
+  }
+
+  if (getArch() == Triple::amdgpu && Other.getArch() == Triple::amdgpu) {
+    if (getOS() != Other.getOS() ||
+        getEnvironment() != Other.getEnvironment() ||
+        getObjectFormat() != Other.getObjectFormat())
+      return false;
+
+    // Tolerate subarch mismatch, but only if one entry is none. This is a hack
+    // for bitcode libraries.
+    if (getSubArch() != Other.getSubArch())
+      return Other.getSubArch() == NoSubArch || getSubArch() == NoSubArch;
+    return true;
   }
 
   // If vendor is apple, ignore the version number (the environment field)
