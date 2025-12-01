@@ -39,5 +39,5 @@ if (LIBOMP_MODULES_INSTALL_PATH)
 endif ()
 install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/../runtime/src/omp_lib.h"
-  DESTINATION ${destination}
+  DESTINATION ${DEVEL_PACKAGE}${destination}
 )
