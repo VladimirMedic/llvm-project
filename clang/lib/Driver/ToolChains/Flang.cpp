@@ -1197,3 +1197,4 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
 Flang::Flang(const ToolChain &TC) : Tool("flang", "flang frontend", TC) {}
 
 Flang::~Flang() {}
+
