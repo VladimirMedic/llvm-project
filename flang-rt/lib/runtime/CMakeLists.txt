@@ -25,6 +25,7 @@ set(module_sources
   __fortran_ieee_exceptions.f90
   __fortran_type_info.f90
   f90deviceio.f90
+  flang_debug.f90
   iso_fortran_env.f90
   ieee_arithmetic.f90
   ieee_exceptions.f90

@@ -165,10 +165,6 @@ endif ()
 set(OPENMP_TEST_Fortran_COMPILER "${OPENMP_TEST_Fortran_COMPILER_default}" CACHE STRING
   "Fortran compiler to use for testing OpenMP runtime libraries.")
 
-if (CMAKE_Fortran_COMPILER AND NOT LLVM_RUNTIMES_BUILD)
-  message(WARNING "Building omp_lib.mod requires using LLVM_ENABLE_RUNTIMES=flang-rt\\\;openmp")
-endif ()
-
 # Set up testing infrastructure.
 include(OpenMPTesting)
 
