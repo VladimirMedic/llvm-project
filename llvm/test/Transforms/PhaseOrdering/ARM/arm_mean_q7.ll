@@ -11,21 +11,21 @@ define void @arm_mean_q7(ptr noundef %pSrc, i32 noundef %blockSize, ptr noundef 
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[BLOCKSIZE:%.*]], 4
 ; CHECK-NEXT:    [[CMP_NOT10:%.*]] = icmp eq i32 [[SHR]], 0
-; CHECK-NEXT:    br i1 [[CMP_NOT10]], label [[WHILE_END:%.*]], label [[WHILE_BODY_PREHEADER:%.*]]
+; CHECK-NEXT:    br i1 [[CMP_NOT10]], label [[WHILE_END:%.*]], label [[WHILE_BODY:%.*]]
 ; CHECK:       while.body.preheader:
 ; CHECK-NEXT:    [[TMP0:%.*]] = and i32 [[BLOCKSIZE]], -16
-; CHECK-NEXT:    br label [[WHILE_BODY:%.*]]
+; CHECK-NEXT:    br label [[WHILE_BODY1:%.*]]
 ; CHECK:       while.body:
-; CHECK-NEXT:    [[SUM_013:%.*]] = phi i32 [ [[TMP3:%.*]], [[WHILE_BODY]] ], [ 0, [[WHILE_BODY_PREHEADER]] ]
-; CHECK-NEXT:    [[PSRC_ADDR_012:%.*]] = phi ptr [ [[ADD_PTR:%.*]], [[WHILE_BODY]] ], [ [[PSRC:%.*]], [[WHILE_BODY_PREHEADER]] ]
-; CHECK-NEXT:    [[BLKCNT_011:%.*]] = phi i32 [ [[DEC:%.*]], [[WHILE_BODY]] ], [ [[SHR]], [[WHILE_BODY_PREHEADER]] ]
+; CHECK-NEXT:    [[SUM_013:%.*]] = phi i32 [ [[TMP3:%.*]], [[WHILE_BODY1]] ], [ 0, [[WHILE_BODY]] ]
+; CHECK-NEXT:    [[PSRC_ADDR_012:%.*]] = phi ptr [ [[ADD_PTR:%.*]], [[WHILE_BODY1]] ], [ [[PSRC:%.*]], [[WHILE_BODY]] ]
+; CHECK-NEXT:    [[BLKCNT_011:%.*]] = phi i32 [ [[DEC:%.*]], [[WHILE_BODY1]] ], [ [[SHR]], [[WHILE_BODY]] ]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[PSRC_ADDR_012]], align 1
 ; CHECK-NEXT:    [[TMP2:%.*]] = tail call i32 @llvm.arm.mve.addv.v16i8(<16 x i8> [[TMP1]], i32 0)
 ; CHECK-NEXT:    [[TMP3]] = add i32 [[TMP2]], [[SUM_013]]
 ; CHECK-NEXT:    [[DEC]] = add nsw i32 [[BLKCNT_011]], -1
 ; CHECK-NEXT:    [[ADD_PTR]] = getelementptr inbounds nuw i8, ptr [[PSRC_ADDR_012]], i32 16
 ; CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp eq i32 [[DEC]], 0
-; CHECK-NEXT:    br i1 [[CMP_NOT]], label [[WHILE_END_LOOPEXIT:%.*]], label [[WHILE_BODY]]
+; CHECK-NEXT:    br i1 [[CMP_NOT]], label [[WHILE_END_LOOPEXIT:%.*]], label [[WHILE_BODY1]]
 ; CHECK:       while.end.loopexit:
 ; CHECK-NEXT:    [[SCEVGEP:%.*]] = getelementptr i8, ptr [[PSRC]], i32 [[TMP0]]
 ; CHECK-NEXT:    br label [[WHILE_END]]
