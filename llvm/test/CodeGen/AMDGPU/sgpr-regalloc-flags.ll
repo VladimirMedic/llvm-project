@@ -24,7 +24,7 @@
 ; DEFAULT-NEXT: Live Interval Analysis
 ; DEFAULT-NEXT: Debug Variable Analysis
 ; DEFAULT-NEXT: Virtual Register Map
-; DEFAULT-NEXT: AMDGPU Emit LiveDebugVariables
+; DEFAULT-NEXT: AMDGPU Re-emit LiveDebugVariables Before Wave Transform
 ; DEFAULT-NEXT: Machine Cycle Info Analysis
 ; DEFAULT-NEXT: AMDGPU Control Flow Wave Transform
 ; DEFAULT: Greedy Register Allocator
@@ -69,7 +69,7 @@
 ; BASIC-DEFAULT-NEXT: Live Interval Analysis
 ; BASIC-DEFAULT-NEXT: Debug Variable Analysis
 ; BASIC-DEFAULT-NEXT: Virtual Register Map
-; BASIC-DEFAULT-NEXT: AMDGPU Emit LiveDebugVariables
+; BASIC-DEFAULT-NEXT: AMDGPU Re-emit LiveDebugVariables Before Wave Transform
 ; BASIC-DEFAULT-NEXT: Machine Cycle Info Analysis
 ; BASIC-DEFAULT-NEXT: AMDGPU Control Flow Wave Transform
 ; BASIC-DEFAULT: Basic Register Allocator
@@ -95,7 +95,7 @@
 ; DEFAULT-BASIC-NEXT: Live Interval Analysis
 ; DEFAULT-BASIC-NEXT: Debug Variable Analysis
 ; DEFAULT-BASIC-NEXT: Virtual Register Map
-; DEFAULT-BASIC-NEXT: AMDGPU Emit LiveDebugVariables
+; DEFAULT-BASIC-NEXT: AMDGPU Re-emit LiveDebugVariables Before Wave Transform
 ; DEFAULT-BASIC-NEXT: Machine Cycle Info Analysis
 ; DEFAULT-BASIC-NEXT: AMDGPU Control Flow Wave Transform
 ; DEFAULT-BASIC: Greedy Register Allocator
@@ -125,7 +125,7 @@
 ; BASIC-BASIC-NEXT: Live Interval Analysis
 ; BASIC-BASIC-NEXT: Debug Variable Analysis
 ; BASIC-BASIC-NEXT: Virtual Register Map
-; BASIC-BASIC-NEXT: AMDGPU Emit LiveDebugVariables
+; BASIC-BASIC-NEXT: AMDGPU Re-emit LiveDebugVariables Before Wave Transform
 ; BASIC-BASIC-NEXT: Machine Cycle Info Analysis
 ; BASIC-BASIC-NEXT: AMDGPU Control Flow Wave Transform
 ; BASIC-BASIC: Basic Register Allocator
