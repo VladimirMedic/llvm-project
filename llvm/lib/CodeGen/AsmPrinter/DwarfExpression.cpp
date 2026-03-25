@@ -780,7 +780,10 @@ void DwarfExpression::addExpression(DIExpression::NewElementsRef Expr,
   this->ArgLocEntries = ArgLocEntries;
   this->TRI = TRI;
   std::optional<DIOp::Fragment> FragOp;
+  HasExplicitLaneOps = false;
   for (DIOp::Variant Op : Expr) {
+    if (std::holds_alternative<DIOp::PushLane>(Op))
+      HasExplicitLaneOps = true;
     if (auto *Frag = std::get_if<DIOp::Fragment>(&Op)) {
       FragOp = *Frag;
       IsFragment = true;
@@ -796,6 +799,7 @@ void DwarfExpression::addExpression(DIExpression::NewElementsRef Expr,
   if (!IsImplemented)
     emitUserOp(dwarf::DW_OP_LLVM_undefined);
   IsFragment = false;
+  HasExplicitLaneOps = false;
   ASTRoot.reset();
   this->TRI = nullptr;
   this->ArgLocEntries = {};
@@ -1017,6 +1021,11 @@ std::optional<NewOpResult> DwarfExpression::traverse(DIOp::Arg Arg,
     SubRegSize /= 8;
 
     auto focusThreadIfRequired = [this](int64_t DwarfRegNo) {
+      // When the DIExpression already contains explicit DIOp::PushLane
+      // operations (inserted by InstrEmitter for divergent VGPR values),
+      // skip implicit lane-offset injection to avoid double application.
+      if (HasExplicitLaneOps)
+        return;
       // FIXME: This should be represented in the DIExpression.
       if (auto LaneSize = TRI->getDwarfRegLaneSize(DwarfRegNo, false)) {
         emitUserOp(dwarf::DW_OP_LLVM_push_lane);

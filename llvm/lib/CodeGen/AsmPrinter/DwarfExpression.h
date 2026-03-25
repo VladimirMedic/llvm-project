@@ -372,6 +372,12 @@ public:
   bool IsPoisonedExpr = false;
   bool PermitDivergentAddrSpaceResult = false;
 
+  /// Set when the DIExpression contains explicit DIOp::PushLane operations.
+  /// When true, the implicit lane-offset injection in focusThreadIfRequired
+  /// (inside traverse(DIOp::Arg)) is suppressed to avoid double application.
+  /// Only meaningful during addExpression() execution; reset on entry and exit.
+  bool HasExplicitLaneOps = false;
+
   /// Called if we're allowed to produce a stack entry whose address space
   /// diverges from the IR type the DIExpression produces.
   void permitDivergentAddrSpace() { PermitDivergentAddrSpaceResult = true; }

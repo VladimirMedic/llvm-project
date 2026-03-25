@@ -704,6 +704,184 @@ void InstrEmitter::EmitRegSequence(SDNode *Node, VRBaseMapType &VRBaseMap,
   assert(isNew && "Node emitted out of order - early");
 }
 
+namespace {
+/// Holds information about a divergent operand that needs lane-specific
+/// byte offset operations added to the DIExpression.
+struct DivergentOperandInfo {
+  unsigned ArgIdx;        // Index in LocationOps array
+  Type *ArgType;          // LLVM type of the operand (from EVT)
+  unsigned StrideInBytes; // Lane stride in bytes (based on register size)
+};
+} // end anonymous namespace
+
+/// Returns a DIExpression with lane-specific operations added for VGPR debug
+/// values, or the original expression if no modification is needed.
+///
+/// For divergent values stored in VGPRs, we need to add operations to compute
+/// the byte offset based on the current lane ID. For each divergent operand,
+/// inserts after its DIOpArg:
+///   DIOpPushLane(i32), DIOpConstant(stride), DIOpMul(), DIOpByteOffset(type)
+///
+/// The stride is derived from the register class size (not the type size),
+/// because sub-dword types (i8, i16, half) still occupy a full 32-bit VGPR
+/// lane. We use DIOpMul (not DIOpShl) so this works for non-power-of-2 sizes
+/// like v3i32 (12 bytes).
+///
+/// For multi-register values (e.g., i64 in two VGPR_32s), the lane offset is
+/// applied to the pre-salvage single DIOpArg. After REG_SEQUENCE salvaging
+/// splits it into a DIOpComposite, the offset applies to the composite as a
+/// whole. This requires the DWARF consumer to distribute the byte offset
+/// across the composite's register pieces.
+///
+/// Handles both SDNODE operands (divergence from SDNode::isDivergent()) and
+/// VREG operands (divergence from TRI->isDivergentRegClass()).
+///
+/// NOTE: This only handles the SelectionDAG path. GlobalISel's
+/// MachineIRBuilder::buildDbgValue does not call this function; for
+/// GlobalISel targets, the implicit lane-offset path in
+/// DwarfExpression::focusThreadIfRequired handles VGPR debug values
+/// (for old-style expressions).
+static DIExpression *
+getExpressionForDivergentDebugValue(DIExpression *Expr,
+                                    ArrayRef<SDDbgOperand> LocationOps,
+                                    LLVMContext &Context,
+                                    const TargetLowering *TLI,
+                                    const TargetRegisterInfo *TRI,
+                                    const MachineRegisterInfo *MRI) {
+  if (!Expr || !Expr->holdsNewElements())
+    return Expr;
+
+  auto ExprOps = Expr->getNewElementsRef();
+  if (!ExprOps)
+    return Expr;
+
+  // If the expression already contains explicit PushLane operations, skip
+  // adding more to avoid double application. (Defense-in-depth: the
+  // HasExplicitLaneOps flag in DwarfExpression also guards against this.)
+  for (const auto &Op : *ExprOps) {
+    if (std::holds_alternative<DIOp::PushLane>(Op))
+      return Expr;
+  }
+
+  // Compute base divergent register class properties.
+  // The lane stride is how many bytes apart adjacent lanes' values are in the
+  // register file. For AMDGPU, VGPRs are allocated in 32-bit (4-byte) units,
+  // so even sub-dword types (i8, i16, half) that use VGPR_16 sub-registers
+  // have a 4-byte lane stride (the parent VGPR_32's width). Multi-register
+  // values (i64, v3i32) have stride = num_base_regs * base_lane_size.
+  // NOTE: This assumes AGPRs have the same lane stride as VGPRs, which holds
+  // for all current AMDGPU targets.
+  const TargetRegisterClass *BaseRC =
+      TLI->getRegClassFor(MVT::i32, /*isDivergent=*/true);
+  unsigned BaseRegSizeInBits = TRI->getRegSizeInBits(*BaseRC);
+  unsigned BaseRegSizeInBytes = BaseRegSizeInBits / 8;
+
+  SmallVector<DivergentOperandInfo, 4> DivergentOps;
+
+  for (unsigned ArgIdx = 0; ArgIdx < LocationOps.size(); ++ArgIdx) {
+    const SDDbgOperand &Op = LocationOps[ArgIdx];
+
+    Type *ArgType = nullptr;
+    unsigned TypeSizeInBits = 0;
+
+    if (Op.getKind() == SDDbgOperand::SDNODE) {
+      SDNode *Node = Op.getSDNode();
+      if (!Node->isDivergent())
+        continue;
+
+      EVT VT = SDValue(Node, Op.getResNo()).getValueType();
+
+      if (VT.isScalableVector()) {
+        LLVM_DEBUG(dbgs() << "Skipping divergent operand " << ArgIdx
+                          << ": scalable vector type\n");
+        continue;
+      }
+
+      if (!VT.isSimple()) {
+        LLVM_DEBUG(dbgs() << "Skipping divergent operand " << ArgIdx
+                          << ": non-simple value type\n");
+        continue;
+      }
+
+      ArgType = VT.getTypeForEVT(Context);
+      TypeSizeInBits = VT.getSizeInBits();
+    } else if (Op.getKind() == SDDbgOperand::VREG) {
+      Register VReg = Op.getVReg();
+      if (!VReg.isVirtual())
+        continue;
+
+      const TargetRegisterClass *RC = MRI->getRegClassOrNull(VReg);
+      if (!RC || !TRI->isDivergentRegClass(RC))
+        continue;
+
+      TypeSizeInBits = TRI->getRegSizeInBits(*RC);
+      // We don't have the original IR type for VREG operands, so
+      // approximate with an integer type matching the register size.
+      ArgType = Type::getIntNTy(Context, TypeSizeInBits);
+    } else {
+      continue;
+    }
+
+    unsigned NumBaseRegs =
+        (TypeSizeInBits + BaseRegSizeInBits - 1) / BaseRegSizeInBits;
+    unsigned StrideInBytes = NumBaseRegs * BaseRegSizeInBytes;
+
+    if (StrideInBytes == 0) {
+      LLVM_DEBUG(dbgs() << "Skipping divergent operand " << ArgIdx
+                        << ": zero lane stride\n");
+      continue;
+    }
+
+    LLVM_DEBUG(dbgs() << "Found divergent operand " << ArgIdx
+                      << " with lane stride " << StrideInBytes << " bytes\n");
+
+    DivergentOps.push_back({ArgIdx, ArgType, StrideInBytes});
+  }
+
+  if (DivergentOps.empty())
+    return Expr;
+
+  DIExprBuilder Builder(Context, *ExprOps);
+  Type *I32Ty = Type::getInt32Ty(Context);
+
+  // Process each divergent operand.
+  for (const DivergentOperandInfo &DivOp : DivergentOps) {
+    // Find the DIOpArg with matching index in the expression.
+    auto InsertPos = Builder.end();
+    bool FoundArg = false;
+
+    for (auto It = Builder.begin(); It != Builder.end(); ++It) {
+      if (auto *ArgOp = std::get_if<DIOp::Arg>(&*It)) {
+        if (ArgOp->getIndex() == DivOp.ArgIdx) {
+          FoundArg = true;
+          InsertPos = std::next(It);
+          break;
+        }
+      }
+    }
+
+    (void)FoundArg;
+    assert(FoundArg && "DIOpArg not found for a known location operand");
+
+    ConstantInt *StrideConst =
+        ConstantInt::get(cast<IntegerType>(I32Ty), DivOp.StrideInBytes);
+
+    // Insert: DIOpPushLane(i32), DIOpConstant(stride), DIOpMul(),
+    //         DIOpByteOffset(type)
+    SmallVector<DIOp::Variant, 4> LaneOps = {
+        DIOp::Variant{DIOp::PushLane(I32Ty)},
+        DIOp::Variant{DIOp::Constant(StrideConst)},
+        DIOp::Variant{DIOp::Mul()},
+        DIOp::Variant{DIOp::ByteOffset(DivOp.ArgType)}};
+    Builder.insert(InsertPos, LaneOps);
+
+    LLVM_DEBUG(dbgs() << "Added lane offset for operand " << DivOp.ArgIdx
+                      << "\n");
+  }
+
+  return Builder.intoExpression();
+}
+
 /// EmitDbgValue - Generate machine instruction for a dbg_value node.
 ///
 MachineInstr *
@@ -795,7 +973,7 @@ MachineInstr *
 InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
                               VRBaseMapType &VRBaseMap) {
   MDNode *Var = SD->getVariable();
-  const DIExpression *Expr = SD->getExpression();
+  DIExpression *Expr = SD->getExpression();
   DebugLoc DL = SD->getDebugLoc();
   const MCInstrDesc &RefII = TII->get(TargetOpcode::DBG_INSTR_REF);
 
@@ -819,7 +997,18 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     return EmitDbgValueFromSingleOp(SD, VRBaseMap);
   }
 
-  Expr = DIExpression::convertForInstrRef(Expr, SD->isIndirect());
+  // For divergent values (VGPRs), modify the expression to include
+  // lane-specific byte offset calculation. Must be done before
+  // convertForInstrRef. For new-style expressions (holdsNewElements()),
+  // convertForInstrRef is a no-op, so ordering doesn't matter in practice.
+  // For old-style expressions, getExpressionForDivergentDebugValue returns
+  // early (they are handled by the implicit path in DwarfExpression).
+  Expr = getExpressionForDivergentDebugValue(Expr, SD->getLocationOps(),
+                                             MF->getFunction().getContext(),
+                                             TLI, TRI, MRI);
+
+  const DIExpression *FinalExpr =
+      DIExpression::convertForInstrRef(Expr, SD->isIndirect());
 
   SmallVector<MachineOperand> MOs;
 
@@ -888,7 +1077,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
     // Leave a virtual-register reference until it can be fixed up later, to
     // find the underlying value definition.
     if (DefMI->isCopyLike() || TII->isCopyInstr(*DefMI) ||
-        (Expr->holdsNewElements() && DefMI->isRegSequence())) {
+        (FinalExpr->holdsNewElements() && DefMI->isRegSequence())) {
       AddVRegOp(VReg);
       continue;
     }
@@ -912,7 +1101,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   if (MOs.size() != OpCount)
     return EmitDbgNoLocation(SD);
 
-  return BuildMI(*MF, DL, RefII, false, MOs, Var, Expr);
+  return BuildMI(*MF, DL, RefII, false, MOs, Var, FinalExpr);
 }
 
 MachineInstr *InstrEmitter::EmitDbgNoLocation(SDDbgValue *SD) {
@@ -933,6 +1122,13 @@ InstrEmitter::EmitDbgValueList(SDDbgValue *SD,
   MDNode *Var = SD->getVariable();
   DIExpression *Expr = SD->getExpression();
   DebugLoc DL = SD->getDebugLoc();
+
+  // For divergent values (VGPRs), modify the expression to include
+  // lane-specific byte offset calculation.
+  Expr = getExpressionForDivergentDebugValue(Expr, SD->getLocationOps(),
+                                             MF->getFunction().getContext(),
+                                             TLI, TRI, MRI);
+
   // DBG_VALUE_LIST := "DBG_VALUE_LIST" var, expression, loc (, loc)*
   const MCInstrDesc &DbgValDesc = TII->get(TargetOpcode::DBG_VALUE_LIST);
   // Build the DBG_VALUE_LIST instruction base.
@@ -964,6 +1160,12 @@ InstrEmitter::EmitDbgValueFromSingleOp(SDDbgValue *SD,
       LocationOps[0] = SDDbgOperand::fromConst(C);
     }
   }
+
+  // For divergent values (VGPRs), modify the expression to include
+  // lane-specific byte offset calculation.
+  Expr = getExpressionForDivergentDebugValue(Expr, LocationOps,
+                                             MF->getFunction().getContext(),
+                                             TLI, TRI, MRI);
 
   // Emit non-variadic dbg_value nodes as DBG_VALUE.
   // DBG_VALUE := "DBG_VALUE" loc, isIndirect, var, expr
