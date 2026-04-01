@@ -717,9 +717,6 @@ RISC-V Support
 CUDA/HIP Language Changes
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- The new offloading driver is now the default for HIP. Use
-  `--no-oflfoad-new-driver` to return to the old behavior.
-
 CUDA Support
 ^^^^^^^^^^^^
 
