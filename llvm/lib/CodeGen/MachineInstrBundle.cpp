@@ -10,6 +10,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionAnalysisManager.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -156,8 +157,15 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
   SmallSetVector<Register, 8> ExternUses;
   SmallSet<Register, 8> KilledUseSet;
   SmallSet<Register, 8> UndefUseSet;
+  SmallSet<Register, 8> InternalReadSet;
   SmallVector<std::pair<Register, Register>> TiedOperands;
   SmallVector<MachineInstr *> MemMIs;
+  auto IsPartiallyDefined = [&LocalDefsP, TRI](Register Reg) {
+    return Reg.isPhysical() &&
+           llvm::any_of(TRI->regunits(Reg.asMCReg()), [&](MCRegUnit Unit) {
+             return LocalDefsP[static_cast<unsigned>(Unit)];
+           });
+  };
   for (auto MII = FirstMI; MII != LastMI; ++MII) {
     // Debug instructions have no effects to track.
     if (MII->isDebugInstr())
@@ -175,9 +183,15 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
           DeadDefSet.insert(Reg);
         }
       } else {
+        bool IsPartialDef = IsPartiallyDefined(Reg);
+        if (IsPartialDef)
+          MO.setIsInternalRead();
+        
         if (ExternUses.insert(Reg)) {
           if (MO.isUndef())
             UndefUseSet.insert(Reg);
+          else if (IsPartialDef)
+            InternalReadSet.insert(Reg);
         }
         if (MO.isKill()) {
           // External def is now killed.
@@ -236,7 +250,8 @@ void llvm::finalizeBundle(MachineBasicBlock &MBB,
   for (Register Reg : ExternUses) {
     bool isKill = KilledUseSet.contains(Reg);
     bool isUndef = UndefUseSet.contains(Reg);
-    MIB.addReg(Reg, getKillRegState(isKill) | getUndefRegState(isUndef) |
+    bool isInternalRead = InternalReadSet.contains(Reg);
+    MIB.addReg(Reg, getKillRegState(isKill) | getUndefRegState(isUndef) | getInternalReadRegState(isInternalRead) |
                         getImplRegState(true));
   }
 
