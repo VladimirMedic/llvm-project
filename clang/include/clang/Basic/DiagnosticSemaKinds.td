@@ -9752,7 +9752,8 @@ def warn_kern_is_inline : Warning<
   "ignored 'inline' attribute on kernel function %0">,
   InGroup<CudaCompat>;
 def err_variadic_device_fn : Error<
-  "CUDA device code does not support variadic functions">;
+  "%enum_select<OffloadLang>{%CUDA{CUDA}|%SYCL{SYCL}}0 device code does not "
+  "support variadic functions">;
 def err_va_arg_in_device : Error<
 "CUDA device code does not support va_arg">;
 def err_alias_not_supported_on_nvptx : Error<"CUDA older than 10.0 does not support .alias">;
@@ -12116,6 +12117,9 @@ def note_omp_collapse_ordered_expr : Note<
   "as specified in %select{'collapse'|'ordered'|'collapse' and 'ordered'}0 clause%select{||s}0">;
 def err_omp_negative_expression_in_clause : Error<
   "argument to '%0' clause must be a %select{non-negative|strictly positive}1 integer value">;
+def err_omp_device_expression_invalid : Error<
+  "argument to 'device' clause must be a non-negative integer value, "
+  "'omp_initial_device' (-1), or 'omp_invalid_device' (-2)">;
 def err_omp_large_expression_in_clause : Error<
   "argument to '%0' clause requires a value that can be represented by a 64-bit">;
 def err_omp_not_integral : Error<
