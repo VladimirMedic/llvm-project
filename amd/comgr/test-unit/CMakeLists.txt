@@ -224,6 +224,36 @@ target_include_directories(OpcodeMapTests PRIVATE
 
 comgr_configure_test_target(OpcodeMapTests)
 
+# -- KernargLayoutTests -----------------------------------------------------------------
+
+add_executable(KernargLayoutTests
+  KernargLayoutTest.cpp)
+
+target_link_libraries(KernargLayoutTests PRIVATE
+  ${COMGR_GTEST_LIBS}
+  ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(KernargLayoutTests)
+
+target_include_directories(KernargLayoutTests PRIVATE
+  ${COMGR_GTEST_INCLUDE_DIRS})
+
+comgr_configure_test_target(KernargLayoutTests)
+
+# -- WaveProjectionTests -----------------------------------------------------------------
+
+add_executable(WaveProjectionTests
+  WaveProjectionTest.cpp)
+
+target_link_libraries(WaveProjectionTests PRIVATE
+  ${COMGR_GTEST_LIBS}
+  ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(WaveProjectionTests)
+
+target_include_directories(WaveProjectionTests PRIVATE
+  ${COMGR_GTEST_INCLUDE_DIRS})
+
+comgr_configure_test_target(WaveProjectionTests)
+
 # Register every test binary with the test-unit / check-comgr plumbing.
 add_custom_target(test-unit
   COMMAND $<TARGET_FILE:HotswapElfTests>
@@ -231,10 +261,14 @@ add_custom_target(test-unit
   COMMAND $<TARGET_FILE:CodeObjectUtilsTests>
   COMMAND $<TARGET_FILE:MCContextInlineSrcmgrTests>
   COMMAND $<TARGET_FILE:OpcodeMapTests>
+  COMMAND $<TARGET_FILE:KernargLayoutTests>
+  COMMAND $<TARGET_FILE:WaveProjectionTests>
   COMMAND $<TARGET_FILE:RaiserScaffoldingTests>)
 add_dependencies(test-unit HotswapElfTests HotswapMCTests
   RaiserScaffoldingTests
   CodeObjectUtilsTests
   MCContextInlineSrcmgrTests
-  OpcodeMapTests)
+  OpcodeMapTests
+  KernargLayoutTests
+  WaveProjectionTests)
 add_dependencies(check-comgr test-unit)
