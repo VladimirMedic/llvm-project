@@ -48,6 +48,7 @@ public:
     };
     Ingest(getHandlerSOP1Attrs());
     Ingest(getHandlerSOP2Attrs());
+    Ingest(getHandlerValuVcmpAttrs());
   }
 
   const CanonicalOpAttrs &operator[](CanonicalOp Op) const {

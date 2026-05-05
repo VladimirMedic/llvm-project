@@ -61,6 +61,7 @@ struct CanonicalOpAttrSpec {
 // `canonical_op_attrs.cpp` aggregating it).
 llvm::ArrayRef<CanonicalOpAttrSpec> getHandlerSOP1Attrs();
 llvm::ArrayRef<CanonicalOpAttrSpec> getHandlerSOP2Attrs();
+llvm::ArrayRef<CanonicalOpAttrSpec> getHandlerValuVcmpAttrs();
 
 // O(1) lookup keyed on CanonicalOp. Returns a default-constructed CanonicalOpAttrs
 // for SemOps that have no declared attrs (fail-closed).
