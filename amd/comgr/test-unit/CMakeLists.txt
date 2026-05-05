@@ -254,6 +254,21 @@ target_include_directories(WaveProjectionTests PRIVATE
 
 comgr_configure_test_target(WaveProjectionTests)
 
+# -- TranslationCacheTests -----------------------------------------------------------------
+
+add_executable(TranslationCacheTests
+  TranslationCacheTest.cpp)
+
+target_link_libraries(TranslationCacheTests PRIVATE
+  ${COMGR_GTEST_LIBS}
+  ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(TranslationCacheTests)
+
+target_include_directories(TranslationCacheTests PRIVATE
+  ${COMGR_GTEST_INCLUDE_DIRS})
+
+comgr_configure_test_target(TranslationCacheTests)
+
 # Register every test binary with the test-unit / check-comgr plumbing.
 add_custom_target(test-unit
   COMMAND $<TARGET_FILE:HotswapElfTests>
@@ -263,6 +278,7 @@ add_custom_target(test-unit
   COMMAND $<TARGET_FILE:OpcodeMapTests>
   COMMAND $<TARGET_FILE:KernargLayoutTests>
   COMMAND $<TARGET_FILE:WaveProjectionTests>
+  COMMAND $<TARGET_FILE:TranslationCacheTests>
   COMMAND $<TARGET_FILE:RaiserScaffoldingTests>)
 add_dependencies(test-unit HotswapElfTests HotswapMCTests
   RaiserScaffoldingTests
@@ -270,5 +286,6 @@ add_dependencies(test-unit HotswapElfTests HotswapMCTests
   MCContextInlineSrcmgrTests
   OpcodeMapTests
   KernargLayoutTests
-  WaveProjectionTests)
+  WaveProjectionTests
+  TranslationCacheTests)
 add_dependencies(check-comgr test-unit)
