@@ -55,6 +55,9 @@ add_library(hotswap-transpiler OBJECT
   raise_failure.cpp
   handle_sopp.cpp
   handle_sopc.cpp
+  canonical_op_attrs.cpp
+  handle_sop1.cpp
+  handle_sop2.cpp
 )
 
 if(NOT TARGET hotswap::transpiler)
