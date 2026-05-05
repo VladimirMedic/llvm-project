@@ -55,8 +55,9 @@ add_comgr_lit_binary(status-string c)
 add_comgr_lit_binary(data-action c)
 add_comgr_lit_binary(lookup-code-object c)
 add_comgr_lit_binary(hotswap-rewrite c)
-
 if(COMGR_ENABLE_HOTSWAP_TRANSPILE)
+  add_comgr_lit_binary(hotswap-transpile c)
+
   # raise_cli is the per-kernel transpile-to-IR driver used by the
   # hotswap-transpile/ lit fixtures. It links the in-tree hotswap
   # transpiler OBJECT library directly (the public amd_comgr API only
@@ -69,6 +70,10 @@ if(COMGR_ENABLE_HOTSWAP_TRANSPILE)
     comgr-sources/raise_cli.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/comgr-metadata.cpp)
   llvm_update_compile_flags(raise_cli)
+  # Mirror amd_comgr's RTTI/EH posture: every typeinfo we touch comes
+  # from LLVM libs that were built with -fno-rtti, so any TU here that
+  # emits typeinfo (Error/ErrorInfo, format_adapter, etc.) will fail
+  # to link if compiled with RTTI on.
   if(NOT LLVM_ENABLE_RTTI)
     if(MSVC)
       target_compile_options(raise_cli PRIVATE /GR-)

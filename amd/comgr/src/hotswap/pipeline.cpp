@@ -210,7 +210,24 @@ struct DumpDir {
 
 } // anonymous namespace
 
+static thread_local bool StrictModeOverrideActive = false;
+static thread_local bool StrictModeOverrideValue = false;
+
+ScopedStrictMode::ScopedStrictMode(bool Enabled)
+    : PreviousActive(StrictModeOverrideActive),
+      PreviousValue(StrictModeOverrideValue) {
+  StrictModeOverrideActive = true;
+  StrictModeOverrideValue = Enabled;
+}
+
+ScopedStrictMode::~ScopedStrictMode() {
+  StrictModeOverrideActive = PreviousActive;
+  StrictModeOverrideValue = PreviousValue;
+}
+
 bool isStrictMode() {
+  if (StrictModeOverrideActive)
+    return StrictModeOverrideValue;
   // Parsed once on first call. The handler implementations call this on
   // every relevant instruction, so going through the OS allocator
   // (`std::getenv`) repeatedly would be wasteful; the result also cannot
@@ -235,7 +252,9 @@ static bool raiseAndCompileKernel(const TextSection &Text,
                                   llvm::StringRef TargetIsa,
                                   const DumpDir &TmpDir,
                                   llvm::StringRef ObjPath,
-                                  PipelineResult &Result) {
+                                  PipelineResult &Result,
+                                  bool EnableWritelaneRewrite = true,
+                                  bool EnableWaveNative = true) {
   auto Meta = extractKernelMeta(CodeObjectData, KernelName);
   if (Meta.Args.empty()) {
     llvm::errs() << "transpiler: WARNING: No metadata found for '" << KernelName
@@ -255,7 +274,7 @@ static bool raiseAndCompileKernel(const TextSection &Text,
                  << "\n");
 
   auto Raised = raiseToIR(Text.Bytes, SourceIsa, KernelName, Meta, KernelOffset,
-                           TargetIsa);
+                           TargetIsa, EnableWritelaneRewrite, EnableWaveNative);
   if (!Raised.Success) {
     llvm::errs() << "transpiler: Raising '" << KernelName << "' to LLVM IR failed";
     Result.FailKernel = KernelName;
@@ -370,7 +389,9 @@ void collectTargetPrivateSegmentMetadata(PipelineResult &Result,
 PipelineResult runPipeline(llvm::ArrayRef<uint8_t> CodeObjectData,
                            llvm::StringRef SourceIsa,
                            llvm::StringRef TargetIsa,
-                           llvm::StringRef KernelName) {
+                           llvm::StringRef KernelName,
+                           bool EnableWritelaneRewrite,
+                           bool EnableWaveNative) {
   PipelineResult Result;
 
   auto Text = extractTextSection(CodeObjectData);
@@ -393,7 +414,8 @@ PipelineResult runPipeline(llvm::ArrayRef<uint8_t> CodeObjectData,
   std::string HsacoPath = TmpDir.filePath("kernel.hsaco");
 
   if (!raiseAndCompileKernel(Text, CodeObjectData, KernelName,
-                             SourceIsa, TargetIsa, TmpDir, ObjPath, Result))
+                             SourceIsa, TargetIsa, TmpDir, ObjPath, Result,
+                             EnableWritelaneRewrite, EnableWaveNative))
     return Result;
 
   if (!linkObjects({ObjPath}, HsacoPath))
@@ -415,7 +437,9 @@ PipelineResult runPipeline(llvm::ArrayRef<uint8_t> CodeObjectData,
 
 PipelineResult runPipelineAllKernels(llvm::ArrayRef<uint8_t> CodeObjectData,
                                      llvm::StringRef SourceIsa,
-                                     llvm::StringRef TargetIsa) {
+                                     llvm::StringRef TargetIsa,
+                                     bool EnableWritelaneRewrite,
+                                     bool EnableWaveNative) {
   PipelineResult Result;
 
   auto KernelNames = listKernelNames(CodeObjectData);
@@ -451,7 +475,8 @@ PipelineResult runPipelineAllKernels(llvm::ArrayRef<uint8_t> CodeObjectData,
                             << KernelNames.size() << "] " << KName << " ... ");
 
     if (!raiseAndCompileKernel(Text, CodeObjectData, KName,
-                               SourceIsa, TargetIsa, TmpDir, ObjPath, Result)) {
+                               SourceIsa, TargetIsa, TmpDir, ObjPath, Result,
+                               EnableWritelaneRewrite, EnableWaveNative)) {
       LLVM_DEBUG(llvm::dbgs() << "FAILED\n");
       Result.Success = false;
       return Result;
