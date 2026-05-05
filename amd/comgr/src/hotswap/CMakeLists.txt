@@ -53,6 +53,8 @@ add_library(hotswap-transpiler OBJECT
   wave_projection.cpp
   setpc_analysis.cpp
   raise_failure.cpp
+  handle_sopp.cpp
+  handle_sopc.cpp
 )
 
 if(NOT TARGET hotswap::transpiler)
