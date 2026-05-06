@@ -299,6 +299,10 @@ static bool raiseAndCompileKernel(const TextSection &Text,
         Result.SourcePrivateSegmentFixedSize)
       Result.SourcePrivateSegmentFixedSize = Raised.SourcePrivateSegmentFixedSize;
   }
+  Result.C5SuppressedCount += Raised.C5SuppressedCount;
+  if (Result.C5SuppressionReason.empty() &&
+      !Raised.C5SuppressionReason.empty())
+    Result.C5SuppressionReason = Raised.C5SuppressionReason;
   if (!Result.IrText.empty())
     Result.IrText += "\n";
   Result.IrText += Raised.IrText;
