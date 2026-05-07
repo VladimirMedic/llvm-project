@@ -42,10 +42,39 @@ else()
   endif()
 endif()
 
+# Wire up a test target against the hotswap transpiler OBJECT lib + the
+# comgr-metadata.cpp helpers it calls (`metadata::walkElfMetadataIntoDoc`
+# and `metadata::getElfIsaNameFromBuffer`, introduced in this commit).
+# Test binaries don't link amd_comgr.so (its export map hides everything
+# except the C entry points), so the metadata helpers must be compiled
+# in directly. `-ffunction-sections -fdata-sections` + `--gc-sections`
+# lets the linker drop unreferenced comgr-metadata.cpp entries
+# (parseTargetIdentifier, the IsaInfos-driven validation, etc.) without
+# dragging in comgr.cpp's transitive dependency closure.
+function(comgr_link_hotswap_transpiler target)
+  target_link_libraries(${target} PRIVATE hotswap::transpiler)
+  target_sources(${target} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/comgr-metadata.cpp)
+  target_include_directories(${target} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_BINARY_DIR}/../include
+    # Tests that pull in transpiler internals (wave_projection.h,
+    # opcode_map.h, ...) need AMDGPU target-private headers too:
+    # SIDefines.h, SIInstrInfo.h, AMDGPUBaseInfo.h live in the LLVM
+    # source tree, AMDGPUGen*.inc files in the LLVM build tree.
+    "${LLVM_BUILD_MAIN_SRC_DIR}/lib/Target/AMDGPU"
+    "${LLVM_BUILD_MAIN_SRC_DIR}/lib/Target/AMDGPU/Utils"
+    "${LLVM_BINARY_DIR}/lib/Target/AMDGPU")
+  if(NOT MSVC)
+    target_compile_options(${target} PRIVATE -ffunction-sections -fdata-sections)
+    target_link_options(${target} PRIVATE -Wl,--gc-sections)
+  endif()
+endfunction()
+
 # Pin C++17 and mirror LLVM's RTTI setting (avoids type_info link errors
-# against LLVM libs built with RTTI off, including hotswap::transpiler
-# which carries its own non-RTTI / non-exceptions compile flags via
-# llvm_update_compile_flags()).
+# against LLVM libs built with RTTI off, including the hotswap transpiler
+# OBJECT lib which carries its own non-RTTI / non-exceptions compile
+# flags via llvm_update_compile_flags()).
 function(comgr_configure_test_target target)
   set_target_properties(${target} PROPERTIES
     CXX_STANDARD 17
@@ -142,19 +171,53 @@ add_executable(RaiserScaffoldingTests
 
 target_link_libraries(RaiserScaffoldingTests PRIVATE
   ${COMGR_GTEST_LIBS}
-  hotswap::transpiler
   ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(RaiserScaffoldingTests)
 
 target_include_directories(RaiserScaffoldingTests PRIVATE
   ${COMGR_GTEST_INCLUDE_DIRS})
 
 comgr_configure_test_target(RaiserScaffoldingTests)
 
+# -- CodeObjectUtilsTests ---------------------------------------------------------------
+
+add_executable(CodeObjectUtilsTests
+  CodeObjectUtilsTest.cpp)
+
+target_link_libraries(CodeObjectUtilsTests PRIVATE
+  ${COMGR_GTEST_LIBS}
+  ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(CodeObjectUtilsTests)
+
+target_include_directories(CodeObjectUtilsTests PRIVATE
+  ${COMGR_GTEST_INCLUDE_DIRS})
+
+comgr_configure_test_target(CodeObjectUtilsTests)
+
+# -- MCContextInlineSrcmgrTests -----------------------------------------------------------------
+
+add_executable(MCContextInlineSrcmgrTests
+  MCContextInlineSrcmgrTest.cpp)
+
+target_link_libraries(MCContextInlineSrcmgrTests PRIVATE
+  ${COMGR_GTEST_LIBS}
+  ${LLVM_PTHREAD_LIB})
+comgr_link_hotswap_transpiler(MCContextInlineSrcmgrTests)
+
+target_include_directories(MCContextInlineSrcmgrTests PRIVATE
+  ${COMGR_GTEST_INCLUDE_DIRS})
+
+comgr_configure_test_target(MCContextInlineSrcmgrTests)
+
 # Register every test binary with the test-unit / check-comgr plumbing.
 add_custom_target(test-unit
   COMMAND $<TARGET_FILE:HotswapElfTests>
   COMMAND $<TARGET_FILE:HotswapMCTests>
+  COMMAND $<TARGET_FILE:CodeObjectUtilsTests>
+  COMMAND $<TARGET_FILE:MCContextInlineSrcmgrTests>
   COMMAND $<TARGET_FILE:RaiserScaffoldingTests>)
 add_dependencies(test-unit HotswapElfTests HotswapMCTests
-  RaiserScaffoldingTests)
+  RaiserScaffoldingTests
+  CodeObjectUtilsTests
+  MCContextInlineSrcmgrTests)
 add_dependencies(check-comgr test-unit)
