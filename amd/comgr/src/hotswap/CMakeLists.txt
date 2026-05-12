@@ -136,6 +136,7 @@ add_library(hotswap-transpiler OBJECT
   tdm-runtime.cpp
   ${HOTSWAP-TDM-RUNTIME-GENERATED-CPP}
   wave-size-obstruction.cpp
+  rewrite-cross-lane-divergent.cpp
 )
 
 if(NOT TARGET hotswap::transpiler)
