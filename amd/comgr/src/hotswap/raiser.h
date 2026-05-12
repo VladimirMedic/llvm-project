@@ -10,7 +10,9 @@
 #define HOTSWAP_TRANSPILER_RAISER_H
 
 #include "code-object-utils.h"
+#include "hotswap-error.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
@@ -26,31 +28,38 @@ namespace COMGR::hotswap {
 struct RaiseResult {
   std::unique_ptr<llvm::LLVMContext> Ctx;
   std::unique_ptr<llvm::Module> Module;
+  int LiftedCount = 0;
+  int TotalCount = 0;
+  std::string IrText;
+  std::string DisasmText;
+  // Predicate-chain classifier observations that the cross-widening
+  // analysis accepted (rather than refused) for this kernel. Surfaced
+  // for diagnostic attribution; counters are zero on a clean lift.
+  // TODO(naming): the `c5*` identifier is prototype-era jargon and
+  // should be replaced with a domain-meaningful name before this lands.
+  int C5SuppressedCount = 0;
+  std::string C5SuppressionReason;
+
+  bool UsesScratchPrivateSegment = false;
+  uint32_t SourcePrivateSegmentFixedSize = 0;
+  bool HasDivergentExec = false;
 };
 
-// Raise a kernel named `KernelName` whose source ISA is `SourceISA`. `Meta`
-// carries the MsgPack-derived per-kernel metadata. The scaffolding
-// implementation emits a `ret void` placeholder and refuses inputs the full
-// pipeline would also refuse:
-//
-//   * Scaffolding / empty-input mode: when both `SourceISA` and
-//     `KernelName` are empty, validation is skipped and a placeholder
-//     module is returned. Useful for stubbing the raiser in tests
-//     without setting up a real ISA.
-//
-//   * Non-empty mode (anything else): both strings must be non-empty,
-//     `SourceISA` must parse via `llvm::AMDGPU::parseArchAMDGCN`, and
-//     `Meta.HasKernelDescriptor` must be true.
-//
-// Returns a `HotswapError` on rejected input; once wired in, decoder
-// failures will likewise propagate as `llvm::Error` (forwarded from
-// the MC layer or freshly created `HotswapError`s for raiser-internal
-// mismatches). The kernel-text bytes, kernel offset, and compilation-
-// target ISA become real parameters once the decoder is wired in
-// (subsequent commit).
-llvm::Expected<RaiseResult> raiseToIR(llvm::StringRef SourceISA,
+/// Raise the kernel-text bytes of `KernelName` from `SourceIsa` to
+/// LLVM IR. On success returns the populated `RaiseResult` (LLVMContext,
+/// Module, lifted/total instruction counts, IR text, etc.). On refusal
+/// returns an `llvm::Error` carrying a `HotswapError` subclass (see
+/// hotswap-error.h); pipeline-level diagnostic records read the
+/// structured `Format` / `Mnemonic` / `Offset` / `Detail` fields off
+/// the base `HotswapError` via `handleAllErrors`.
+llvm::Expected<RaiseResult> raiseToIR(llvm::ArrayRef<uint8_t> TextBytes,
+                                      llvm::StringRef SourceIsa,
                                       llvm::StringRef KernelName,
-                                      const KernelMeta &Meta);
+                                      const KernelMeta &Meta,
+                                      uint64_t KernelOffset = 0,
+                                      llvm::StringRef CompilationTargetIsa = "",
+                                      bool EnableWritelaneRewrite = true,
+                                      bool EnableWaveNative = true);
 
 } // namespace COMGR::hotswap
 

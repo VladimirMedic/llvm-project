@@ -437,7 +437,10 @@ struct RaiseContext {
   // dispatch loop in `raiser.cpp` consumes `PendingFailure` after each
   // handler returns and aborts the kernel raise. Set via
   // `recordReadFailure`; the dispatch loop moves the Error out (via
-  // std::move) and continues with a success state.
+  // std::move) and continues with a success state. The destructor
+  // below consumes any unchecked success that survives loop exit
+  // (zero-instruction kernels, early aborts before the loop has run
+  // a full iteration, etc.).
   llvm::Error PendingFailure = llvm::Error::success();
 
   // Record an operand-read failure. Only the first failure per
@@ -454,6 +457,21 @@ struct RaiseContext {
       PendingFailure = std::move(E);
     }
   }
+
+  // RaiseContext owns `PendingFailure` (an `llvm::Error`). The
+  // dispatch loop in raiser.cpp checks `if (Ctx.PendingFailure)`
+  // each iteration, which already satisfies the checked-flag
+  // contract for the steady-state lifecycle. The destructor below
+  // is a defensive consumeError for edge cases (zero-instruction
+  // kernels, early aborts before any iteration runs, etc.) where
+  // PendingFailure might still be in unchecked-success state.
+  // Reference members (C, M, B, Regs, ...) make copy- and move-
+  // assignment implicitly deleted. Provide a destructor for the
+  // PendingFailure checked-flag contract; copy/move-ctors and
+  // assignment remain compiler-generated.
+  RaiseContext(const RaiseContext &) = delete;
+  RaiseContext &operator=(const RaiseContext &) = delete;
+  ~RaiseContext() { llvm::consumeError(std::move(PendingFailure)); }
 };
 
 // Return value from every format handler.
@@ -479,6 +497,24 @@ struct HandlerResult {
   llvm::Value *SccResult = nullptr;
   bool SccHandled = false;
   llvm::Error Failure = llvm::Error::success();
+
+  // Pre-mark Failure as checked at default-init so the first
+  // `Hr.Failure = makeXXX()` reassignment doesn't trip
+  // assertIsChecked() in Error's move-assignment.
+  HandlerResult() { (void)!Failure; }
+  HandlerResult(HandlerResult &&) = default;
+  HandlerResult &operator=(HandlerResult &&) = default;
+  HandlerResult(const HandlerResult &) = delete;
+  HandlerResult &operator=(const HandlerResult &) = delete;
+  // llvm::Error's checked-flag contract requires explicit consumption
+  // before destruction. The dispatch loop only consumes `Failure` on
+  // the refusal branch (via `Result.Failure = std::move(Hr.Failure)`);
+  // on the `handled` / `unclaimed` branches `Failure` is still a
+  // default-constructed success() in unchecked state. Consume here
+  // defensively so the steady-state success path doesn't trip the
+  // destruction assert. (For Errors already moved-from or already
+  // checked, consumeError is a no-op.)
+  ~HandlerResult() { llvm::consumeError(std::move(Failure)); }
 
   static HandlerResult unclaimed() { return {}; }
 

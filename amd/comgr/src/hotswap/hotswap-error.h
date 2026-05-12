@@ -273,6 +273,36 @@ llvm::Error
 makeHotswapUserSgprLayoutMismatchError(llvm::StringRef KernelName,
                                        const llvm::Twine &Detail);
 
+// Round-trip helper for diagnostic sites that need to render a
+// HotswapError's structured fields before propagating the error
+// onward. Consumes `E` via `handleAllErrors`, invokes `Callback`
+// with the extracted fields, and returns a freshly-constructed
+// equivalent `HotswapError` for the caller to move into its
+// result slot. The specific subclass type is lost across the
+// round-trip (the rebuilt error is the base `HotswapError`), but
+// the stable `Format` string the lit tests grep on is preserved
+// character-for-character, and pipeline-level diagnostic records
+// (which read fields off the base class via `handleAllErrors`)
+// see the same payload.
+template <typename Callback>
+llvm::Error renderAndRebuildHotswapError(llvm::Error E, Callback &&Cb) {
+  std::string FormatStr;
+  std::string MnemonicStr;
+  std::string DetailStr;
+  uint64_t OffsetVal = 0;
+  llvm::handleAllErrors(std::move(E), [&](const HotswapError &HE) {
+    FormatStr = HE.Format;
+    MnemonicStr = HE.Mnemonic;
+    OffsetVal = HE.Offset;
+    DetailStr = HE.Detail;
+  });
+  std::forward<Callback>(Cb)(llvm::StringRef(FormatStr),
+                             llvm::StringRef(MnemonicStr), OffsetVal,
+                             llvm::StringRef(DetailStr));
+  return llvm::make_error<HotswapError>(FormatStr, MnemonicStr, OffsetVal,
+                                        DetailStr);
+}
+
 } // namespace COMGR::hotswap
 
 #endif

@@ -8,17 +8,19 @@
 //
 // Pins the scaffolding contract `raiseToIR` advertises:
 //
-//   * Empty input (both SourceISA and KernelName empty): validation is
-//     bypassed and a placeholder module with a single AMDGPU_KERNEL
-//     `ret void` function is produced.
+//   * Empty text bytes + valid SourceISA + KernelName +
+//     HasKernelDescriptor=true: the production raiser walks zero
+//     instructions, emits a single AMDGPU_KERNEL function with
+//     `ret void`, and returns a populated `RaiseResult` wrapped in
+//     an `llvm::Expected`.
 //
-//   * Non-empty input: SourceISA must parse as AMDGPU, both strings
-//     must be non-empty, and Meta.HasKernelDescriptor must be true.
-//     Failures surface as `HotswapError` (Comgr's distinct
-//     `llvm::ErrorInfo` subclass for hotswap-detected conditions).
+//   * Invalid input (empty SourceISA, malformed ISA, missing KD):
+//     raiseToIR aborts early and surfaces a `HotswapError` subclass
+//     via `llvm::Expected<>`'s error channel.
 //
-// Partial-empty input (one string empty, the other non-empty) is
-// treated as malformed and rejected.
+// Failures are categorised `HotswapError` ErrorInfo subclasses (see
+// hotswap-error.h). Tests assert on the failure category via
+// `Err.isA<HotswapError>()`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,7 +60,7 @@ bool isHotswapError(const llvm::Error &E) {
 TEST(RaiserScaffolding, ValidInputProducesValidModule) {
   COMGR::hotswap::KernelMeta Meta = makeKernelMeta("kernel");
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("gfx942", "kernel", Meta);
+      COMGR::hotswap::raiseToIR({}, "gfx942", "kernel", Meta);
 
   ASSERT_TRUE(static_cast<bool>(Result)) << llvm::toString(Result.takeError());
   ASSERT_NE(Result->Ctx, nullptr);
@@ -72,7 +74,7 @@ TEST(RaiserScaffolding, ValidInputProducesValidModule) {
 TEST(RaiserScaffolding, ModuleAdvertisesAMDGPUTriple) {
   COMGR::hotswap::KernelMeta Meta = makeKernelMeta("kernel");
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("gfx942", "kernel", Meta);
+      COMGR::hotswap::raiseToIR({}, "gfx942", "kernel", Meta);
 
   ASSERT_TRUE(static_cast<bool>(Result)) << llvm::toString(Result.takeError());
   ASSERT_NE(Result->Module, nullptr);
@@ -82,7 +84,7 @@ TEST(RaiserScaffolding, ModuleAdvertisesAMDGPUTriple) {
 TEST(RaiserScaffolding, KernelFunctionIsAMDGPUKernelWithRetVoid) {
   COMGR::hotswap::KernelMeta Meta = makeKernelMeta("kernel");
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("gfx942", "kernel", Meta);
+      COMGR::hotswap::raiseToIR({}, "gfx942", "kernel", Meta);
 
   ASSERT_TRUE(static_cast<bool>(Result)) << llvm::toString(Result.takeError());
   llvm::Function *Fn = Result->Module->getFunction("kernel");
@@ -94,29 +96,10 @@ TEST(RaiserScaffolding, KernelFunctionIsAMDGPUKernelWithRetVoid) {
   EXPECT_TRUE(llvm::isa<llvm::ReturnInst>(Entry.getTerminator()));
 }
 
-// Empty input (both ISA and kernel name empty) bypasses validation and
-// produces a placeholder module. The KernelMeta is allowed to be a
-// default-constructed value -- in particular, HasKernelDescriptor=false
-// is fine, because the scaffolding-mode bypass skips that check.
-TEST(RaiserScaffolding, EmptyInputProducesValidModule) {
-  COMGR::hotswap::KernelMeta Meta;
-  llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("", "", Meta);
-
-  ASSERT_TRUE(static_cast<bool>(Result)) << llvm::toString(Result.takeError());
-  ASSERT_NE(Result->Ctx, nullptr);
-  ASSERT_NE(Result->Module, nullptr);
-  EXPECT_EQ(Result->Module->getTargetTriple().str(), "amdgcn-amd-amdhsa");
-
-  std::string Err;
-  llvm::raw_string_ostream ErrStream(Err);
-  EXPECT_FALSE(llvm::verifyModule(*Result->Module, &ErrStream)) << Err;
-}
-
 TEST(RaiserScaffolding, MalformedTargetIsaIsRejected) {
   COMGR::hotswap::KernelMeta Meta = makeKernelMeta("kernel");
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("not-a-real-isa", "kernel", Meta);
+      COMGR::hotswap::raiseToIR({}, "not-a-real-isa", "kernel", Meta);
 
   ASSERT_FALSE(static_cast<bool>(Result));
   llvm::Error Err = Result.takeError();
@@ -124,25 +107,10 @@ TEST(RaiserScaffolding, MalformedTargetIsaIsRejected) {
   llvm::consumeError(std::move(Err));
 }
 
-// Partial-empty input: empty ISA paired with a non-empty kernel name is
-// rejected as malformed (the bypass only fires when *both* strings are
-// empty).
-TEST(RaiserScaffolding, EmptyTargetIsaWithNonEmptyKernelIsRejected) {
+TEST(RaiserScaffolding, EmptyTargetIsaIsRejected) {
   COMGR::hotswap::KernelMeta Meta = makeKernelMeta("kernel");
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("", "kernel", Meta);
-
-  ASSERT_FALSE(static_cast<bool>(Result));
-  llvm::Error Err = Result.takeError();
-  EXPECT_TRUE(isHotswapError(Err));
-  llvm::consumeError(std::move(Err));
-}
-
-// Mirror of the previous test for the other partial-empty shape.
-TEST(RaiserScaffolding, EmptyKernelNameWithNonEmptyIsaIsRejected) {
-  COMGR::hotswap::KernelMeta Meta = makeKernelMeta("");
-  llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("gfx942", "", Meta);
+      COMGR::hotswap::raiseToIR({}, "", "kernel", Meta);
 
   ASSERT_FALSE(static_cast<bool>(Result));
   llvm::Error Err = Result.takeError();
@@ -158,7 +126,7 @@ TEST(RaiserScaffolding, MissingKernelDescriptorIsRejected) {
   Meta.Name = "kernel";
   Meta.HasKernelDescriptor = false;
   llvm::Expected<COMGR::hotswap::RaiseResult> Result =
-      COMGR::hotswap::raiseToIR("gfx942", "kernel", Meta);
+      COMGR::hotswap::raiseToIR({}, "gfx942", "kernel", Meta);
 
   ASSERT_FALSE(static_cast<bool>(Result));
   llvm::Error Err = Result.takeError();
