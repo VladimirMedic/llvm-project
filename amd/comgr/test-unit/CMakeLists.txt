@@ -44,13 +44,13 @@ endif()
 
 # Wire up a test target against the hotswap transpiler OBJECT lib + the
 # comgr-metadata.cpp helpers it calls (`metadata::walkElfMetadataIntoDoc`
-# and `metadata::getElfIsaNameFromBuffer`).
-# Test binaries don't link amd_comgr.so (its export map hides everything
-# except the C entry points), so the metadata helpers must be compiled
-# in directly. `-ffunction-sections -fdata-sections` + `--gc-sections`
-# lets the linker drop unreferenced comgr-metadata.cpp entries
-# (parseTargetIdentifier, the IsaInfos-driven validation, etc.) without
-# dragging in comgr.cpp's transitive dependency closure.
+# and `metadata::getElfIsaNameFromBuffer`). Test binaries don't link
+# amd_comgr.so (its export map hides everything except the C entry
+# points), so the metadata helpers must be compiled in directly.
+# `-ffunction-sections -fdata-sections` + `--gc-sections` lets the linker
+# drop unreferenced comgr-metadata.cpp entries (parseTargetIdentifier,
+# the IsaInfos-driven validation, etc.) without dragging in comgr.cpp's
+# transitive dependency closure.
 function(comgr_link_hotswap_transpiler target)
   # `amd_comgr` provides the public C entry points
   # (`amd_comgr_create_data` / `set_data` / `release_data`) that
@@ -168,6 +168,14 @@ target_include_directories(HotswapMCTests PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/../include>)
 
 comgr_configure_test_target(HotswapMCTests)
+
+# All test targets below this point exercise the hotswap transpiler
+# OBJECT library (`hotswap::transpiler`), which is only built when
+# `COMGR_ENABLE_HOTSWAP_TRANSPILE=ON` (see the gated
+# `add_subdirectory(src/hotswap)` in `amd/comgr/CMakeLists.txt`). Skip
+# them otherwise — neither the OBJECT lib target nor the
+# `comgr_link_hotswap_transpiler` helper exist.
+if(COMGR_ENABLE_HOTSWAP_TRANSPILE)
 
 # -- RaiserScaffoldingTests ---------------------------------------------------
 #
@@ -338,29 +346,30 @@ target_include_directories(TranslationCacheTests PRIVATE
 
 comgr_configure_test_target(TranslationCacheTests)
 
+endif() # COMGR_ENABLE_HOTSWAP_TRANSPILE
+
 # Register every test binary with the test-unit / check-comgr plumbing.
-add_custom_target(test-unit
-  COMMAND $<TARGET_FILE:HotswapElfTests>
-  COMMAND $<TARGET_FILE:HotswapMCTests>
-  COMMAND $<TARGET_FILE:CodeObjectUtilsTests>
-  COMMAND $<TARGET_FILE:MCContextInlineSrcmgrTests>
-  COMMAND $<TARGET_FILE:OpcodeMapTests>
-  COMMAND $<TARGET_FILE:RaiserScaffoldingTests>
-  COMMAND $<TARGET_FILE:WaveProjectionTests>
-  COMMAND $<TARGET_FILE:KernargLayoutTests>
-  COMMAND $<TARGET_FILE:SourceHiddenArgsTests>
-  COMMAND $<TARGET_FILE:MXFP4DequantTests>
-  COMMAND $<TARGET_FILE:C5PredicateChainTests>
-  COMMAND $<TARGET_FILE:TranslationCacheTests>)
-add_dependencies(test-unit HotswapElfTests HotswapMCTests
-  RaiserScaffoldingTests
-  CodeObjectUtilsTests
-  MCContextInlineSrcmgrTests
-  OpcodeMapTests
-  WaveProjectionTests
-  KernargLayoutTests
-  SourceHiddenArgsTests
-  MXFP4DequantTests
-  C5PredicateChainTests
-  TranslationCacheTests)
+# HotswapElfTests / HotswapMCTests are always built — they only exercise
+# `comgr-hotswap-elf.cpp` / `comgr-hotswap-llvm.cpp`, which live in
+# amd_comgr.so itself, not the hotswap transpiler subproject.
+set(_comgr_test_unit_targets HotswapElfTests HotswapMCTests)
+if(COMGR_ENABLE_HOTSWAP_TRANSPILE)
+  list(APPEND _comgr_test_unit_targets
+    RaiserScaffoldingTests
+    CodeObjectUtilsTests
+    MCContextInlineSrcmgrTests
+    OpcodeMapTests
+    WaveProjectionTests
+    KernargLayoutTests
+    SourceHiddenArgsTests
+    MXFP4DequantTests
+    C5PredicateChainTests
+    TranslationCacheTests)
+endif()
+set(_comgr_test_unit_commands "")
+foreach(_t ${_comgr_test_unit_targets})
+  list(APPEND _comgr_test_unit_commands COMMAND $<TARGET_FILE:${_t}>)
+endforeach()
+add_custom_target(test-unit ${_comgr_test_unit_commands})
+add_dependencies(test-unit ${_comgr_test_unit_targets})
 add_dependencies(check-comgr test-unit)
