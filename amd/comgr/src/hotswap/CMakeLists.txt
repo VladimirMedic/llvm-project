@@ -135,6 +135,7 @@ add_library(hotswap-transpiler OBJECT
   handle-vimage.cpp
   tdm-runtime.cpp
   ${HOTSWAP-TDM-RUNTIME-GENERATED-CPP}
+  wave-size-obstruction.cpp
 )
 
 if(NOT TARGET hotswap::transpiler)
