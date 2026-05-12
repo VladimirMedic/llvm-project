@@ -58,6 +58,10 @@ add_library(hotswap-transpiler OBJECT
   setpc-analysis.cpp
   handle-sopp.cpp
   handle-sopc.cpp
+  handle-sop1.cpp
+  handle-sop2.cpp
+  handle-sopk.cpp
+  canonical-op-attrs.cpp
 )
 
 if(NOT TARGET hotswap::transpiler)
